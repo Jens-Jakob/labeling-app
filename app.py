@@ -258,7 +258,22 @@ def dashboard_page():
 
 def main_app():
     """Main application router."""
-    page = st.query_params.get("page", "rater")
+    # Debug: Show what page parameter we're getting
+    try:
+        page = st.query_params.get("page", "rater")
+        st.sidebar.write(f"Debug: page = '{page}'")  # Temporary debug info
+    except Exception as e:
+        st.sidebar.write(f"Debug: Error getting page param: {e}")
+        page = "rater"
+    
+    # Add navigation in sidebar
+    st.sidebar.title("Navigation")
+    if st.sidebar.button("📊 Go to Dashboard"):
+        st.query_params.page = "dashboard"
+        st.rerun()
+    if st.sidebar.button("⭐ Go to Rating Tool"):
+        st.query_params.page = "rater"
+        st.rerun()
 
     if page == "dashboard":
         dashboard_page()
@@ -277,4 +292,4 @@ def main_app():
             show_rating_interface(st.session_state.user_identifier)
 
 if __name__ == "__main__":
-    main_app() 
+    main_app()  
