@@ -88,7 +88,7 @@ def dashboard_page():
     # IMPORTANT: Set this password in your Streamlit secrets management
     # It looks for a secret named "DASHBOARD_PASSWORD"
     try:
-        correct_password = st.secrets["jjersmuk"]
+        correct_password = st.secrets["DASHBOARD_PASSWORD"]
     except FileNotFoundError:
         st.error("Secrets file not found. Please add secrets to your Streamlit app.")
         return
