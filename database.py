@@ -48,4 +48,48 @@ def get_all_ratings(conn):
     """Fetches all ratings from the database."""
     with conn.session as s:
         result = s.execute(text("SELECT * FROM ratings ORDER BY timestamp DESC")).fetchall()
+    return result
+
+def get_flagged_images(conn):
+    """Fetches all images that have been flagged (rating = -2)."""
+    with conn.session as s:
+        result = s.execute(text("SELECT DISTINCT image_id FROM ratings WHERE rating = -2")).fetchall()
+    return [row.image_id for row in result]
+
+def get_image_statistics(conn):
+    """Get statistics for each image including average rating, count, and controversy score."""
+    with conn.session as s:
+        result = s.execute(text("""
+            SELECT 
+                image_id,
+                COUNT(*) as total_ratings,
+                COUNT(CASE WHEN rating > 0 THEN 1 END) as valid_ratings,
+                COUNT(CASE WHEN rating = -1 THEN 1 END) as skips,
+                COUNT(CASE WHEN rating = -2 THEN 1 END) as flags,
+                AVG(CASE WHEN rating > 0 THEN rating END) as avg_rating,
+                MIN(CASE WHEN rating > 0 THEN rating END) as min_rating,
+                MAX(CASE WHEN rating > 0 THEN rating END) as max_rating
+            FROM ratings 
+            GROUP BY image_id
+            ORDER BY total_ratings DESC
+        """)).fetchall()
+    return result
+
+def get_user_statistics(conn):
+    """Get statistics for each user to identify potential data quality issues."""
+    with conn.session as s:
+        result = s.execute(text("""
+            SELECT 
+                user_identifier,
+                COUNT(*) as total_submissions,
+                COUNT(CASE WHEN rating > 0 THEN 1 END) as valid_ratings,
+                COUNT(CASE WHEN rating = -1 THEN 1 END) as skips,
+                COUNT(CASE WHEN rating = -2 THEN 1 END) as flags,
+                AVG(CASE WHEN rating > 0 THEN rating END) as avg_rating,
+                MIN(timestamp) as first_rating,
+                MAX(timestamp) as last_rating
+            FROM ratings 
+            GROUP BY user_identifier
+            ORDER BY total_submissions DESC
+        """)).fetchall()
     return result 

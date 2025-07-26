@@ -3,7 +3,7 @@ import os
 import random
 import uuid
 import pandas as pd
-from database import init_db, save_rating, get_rated_images, get_all_ratings
+from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics
 from sqlalchemy import text
 
 # --- Page Configuration ---
@@ -74,9 +74,10 @@ def show_rating_interface(user_identifier):
         st.balloons()
 
 def dashboard_page():
-    st.title("📊 Dashboard")
-    password = st.text_input("Enter password", type="password")
+    st.title("📊 Analytics Dashboard")
     
+    # Password protection
+    password = st.text_input("Enter password", type="password")
     try:
         correct_password = st.secrets["DASHBOARD_PASSWORD"]
     except Exception:
@@ -87,28 +88,162 @@ def dashboard_page():
         if password: st.error("Incorrect password.")
         return
     
-    st.success("Welcome to the dashboard.")
+    st.success("Welcome to the analytics dashboard.")
     
+    # Check if there's data
     all_ratings = get_all_ratings(conn)
     if not all_ratings:
         st.warning("No ratings submitted yet.")
         return
 
-    df = pd.DataFrame(all_ratings)
+    # Create tabs for different analytics
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Overview", "🖼️ Image Analytics", "🚩 Flagged Images", "👥 User Analytics", "📥 Export Data"])
     
-    st.header("Key Metrics")
-    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-    m_col1.metric("Total Submissions", len(df))
-    m_col2.metric("Valid Ratings", df[df['rating'] > 0].shape[0])
-    m_col3.metric("Skipped", df[df['rating'] == -1].shape[0])
-    m_col4.metric("Flagged", df[df['rating'] == -2].shape[0])
-
-    st.header("Download Data")
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download all ratings as CSV", csv, "face_ratings_export.csv", "text/csv", use_container_width=True)
+    with tab1:
+        st.header("Overview")
+        df = pd.DataFrame(all_ratings)
+        
+        # Key metrics
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Submissions", len(df))
+        col2.metric("Valid Ratings", len(df[df['rating'] > 0]))
+        col3.metric("Skipped", len(df[df['rating'] == -1]))
+        col4.metric("Flagged", len(df[df['rating'] == -2]))
+        
+        # Rating distribution
+        valid_ratings = df[df['rating'] > 0]['rating']
+        if len(valid_ratings) > 0:
+            st.subheader("Rating Distribution")
+            fig_data = valid_ratings.value_counts().sort_index()
+            st.bar_chart(fig_data)
+            
+            col1, col2 = st.columns(2)
+            col1.metric("Average Rating", f"{valid_ratings.mean():.1f}")
+            col2.metric("Rating Std Dev", f"{valid_ratings.std():.1f}")
     
-    st.header("Raw Data")
-    st.dataframe(df)
+    with tab2:
+        st.header("Image Analytics")
+        image_stats = get_image_statistics(conn)
+        
+        if image_stats:
+            df_images = pd.DataFrame(image_stats)
+            df_images = df_images.fillna(0)  # Handle NaN values
+            
+            # Add controversy score (high when ratings vary a lot)
+            df_images['controversy_score'] = df_images['max_rating'] - df_images['min_rating']
+            df_images['controversy_score'] = df_images['controversy_score'].fillna(0)
+            
+            st.subheader("Top Rated Images")
+            top_rated = df_images[df_images['valid_ratings'] >= 2].nlargest(10, 'avg_rating')
+            if not top_rated.empty:
+                st.dataframe(top_rated[['image_id', 'avg_rating', 'valid_ratings', 'controversy_score']], use_container_width=True)
+            
+            st.subheader("Most Controversial Images")
+            controversial = df_images[df_images['valid_ratings'] >= 3].nlargest(10, 'controversy_score')
+            if not controversial.empty:
+                st.dataframe(controversial[['image_id', 'avg_rating', 'controversy_score', 'valid_ratings']], use_container_width=True)
+            
+            st.subheader("All Image Statistics")
+            st.dataframe(df_images, use_container_width=True)
+        else:
+            st.info("No image statistics available yet.")
+    
+    with tab3:
+        st.header("Flagged Images Review")
+        flagged_images = get_flagged_images(conn)
+        
+        if flagged_images:
+            st.warning(f"Found {len(flagged_images)} flagged images that need review:")
+            
+            for img_id in flagged_images:
+                with st.expander(f"🚩 {img_id}"):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        try:
+                            img_path = f"images/holdout_faces/cropped/{img_id}"
+                            if os.path.exists(img_path):
+                                st.image(img_path, width=300)
+                            else:
+                                st.error("Image file not found")
+                        except Exception as e:
+                            st.error(f"Error loading image: {e}")
+                    
+                    with col2:
+                        # Show flag count for this image
+                        flags_df = pd.DataFrame(all_ratings)
+                        flag_count = len(flags_df[(flags_df['image_id'] == img_id) & (flags_df['rating'] == -2)])
+                        st.metric("Times Flagged", flag_count)
+                        
+                        st.info("Review this image and consider removing it from your dataset if it's inappropriate or poor quality.")
+        else:
+            st.success("No flagged images. All images appear to be appropriate.")
+    
+    with tab4:
+        st.header("User Analytics & Data Quality")
+        user_stats = get_user_statistics(conn)
+        
+        if user_stats:
+            df_users = pd.DataFrame(user_stats)
+            df_users = df_users.fillna(0)
+            
+            st.subheader("Top Contributors")
+            st.dataframe(df_users.head(10), use_container_width=True)
+            
+            st.subheader("Potential Data Quality Issues")
+            
+            # Flag users with suspicious patterns
+            suspicious_users = df_users[
+                (df_users['avg_rating'] == df_users['avg_rating'].max()) |  # Always max rating
+                (df_users['avg_rating'] == df_users['avg_rating'].min()) |  # Always min rating
+                (df_users['flags'] / df_users['total_submissions'] > 0.5)   # Flag more than half
+            ]
+            
+            if not suspicious_users.empty:
+                st.warning("Users with potentially suspicious rating patterns:")
+                st.dataframe(suspicious_users, use_container_width=True)
+            else:
+                st.success("No obvious data quality issues detected.")
+                
+            st.subheader("All User Statistics")
+            st.dataframe(df_users, use_container_width=True)
+        else:
+            st.info("No user statistics available yet.")
+    
+    with tab5:
+        st.header("Export Data")
+        df = pd.DataFrame(all_ratings)
+        
+        st.subheader("Download Options")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Full dataset
+            csv_all = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Download All Ratings",
+                csv_all,
+                "all_ratings.csv",
+                "text/csv",
+                use_container_width=True
+            )
+        
+        with col2:
+            # Valid ratings only
+            valid_only = df[df['rating'] > 0]
+            if not valid_only.empty:
+                csv_valid = valid_only.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Valid Ratings Only",
+                    csv_valid,
+                    "valid_ratings.csv",
+                    "text/csv",
+                    use_container_width=True
+                )
+        
+        st.subheader("Data Preview")
+        st.dataframe(df.head(20), use_container_width=True)
 
 def main_app():
     """Main application router."""
