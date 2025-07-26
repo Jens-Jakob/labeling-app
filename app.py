@@ -13,13 +13,10 @@ st.set_page_config(layout="wide", page_title="Face Rating Tool")
 conn = st.connection('ratings_db', type='sql', url='sqlite:///ratings.db')
 init_db(conn)
 
-# --- App Routing ---
-def rating_page():
-    # --- Session Management ---
-    if 'session_id' not in st.session_state:
-        st.session_state.session_id = str(uuid.uuid4())
-    session_id = st.session_state.session_id
+# --- App Logic ---
 
+def show_rating_interface(user_identifier):
+    """The main UI for rating images."""
     st.title("Face Attractiveness Rating Tool")
     st.write(
         "Rate the face's attractiveness from 1-100. "
@@ -30,13 +27,11 @@ def rating_page():
     IMAGE_DIR = "images/holdout_faces/cropped"
     try:
         all_images = sorted([f for f in os.listdir(IMAGE_DIR) if f.endswith(('.png', '.jpg', '.jpeg'))])
-        rated_images = get_rated_images(conn, session_id)
+        rated_images = get_rated_images(conn, user_identifier)
         unrated_images = [img for img in all_images if img not in rated_images]
 
         # --- Progress Bar ---
-        progress = len(rated_images)
-        total = len(all_images)
-        st.progress(progress / total, text=f"Progress: {progress} / {total} images rated")
+        st.progress(len(rated_images) / len(all_images), text=f"Progress: {len(rated_images)} / {len(all_images)} images rated")
 
         if not unrated_images:
             st.success("🎉 You have rated all available images. Thank you!")
@@ -56,20 +51,19 @@ def rating_page():
             st.write("### Your Rating")
             rating = st.slider("Rating", 1, 100, 50, label_visibility="collapsed")
             
-            # --- Action Buttons ---
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):
-                save_rating(conn, current_image, rating, session_id)
+                save_rating(conn, current_image, rating, user_identifier)
                 st.toast(f"Saved rating of {rating}.", icon="✅")
                 st.rerun()
 
             if b_col2.button("➡️ Skip", use_container_width=True):
-                save_rating(conn, current_image, -1, session_id)
+                save_rating(conn, current_image, -1, user_identifier)
                 st.toast(f"Skipped image.", icon="➡️")
                 st.rerun()
 
             if b_col3.button("🚩 Flag", use_container_width=True, type="secondary"):
-                save_rating(conn, current_image, -2, session_id)
+                save_rating(conn, current_image, -2, user_identifier)
                 st.toast(f"Flagged image for review.", icon="🚩")
                 st.rerun()
     
@@ -81,69 +75,60 @@ def rating_page():
 
 def dashboard_page():
     st.title("📊 Dashboard")
-
-    # --- Password Protection ---
-    password = st.text_input("Enter password to access dashboard", type="password")
+    password = st.text_input("Enter password", type="password")
     
-    # IMPORTANT: Set this password in your Streamlit secrets management
-    # It looks for a secret named "DASHBOARD_PASSWORD"
     try:
         correct_password = st.secrets["DASHBOARD_PASSWORD"]
-    except FileNotFoundError:
-        st.error("Secrets file not found. Please add secrets to your Streamlit app.")
-        return
-    except KeyError:
-        st.error("`DASHBOARD_PASSWORD` not found in secrets. Please set it.")
+    except Exception:
+        st.error("Dashboard password not set in Streamlit Secrets.")
         return
 
     if password != correct_password:
-        if password: # If user has entered a password but it's wrong
-            st.error("Incorrect password.")
-        return # Stop execution if password is not correct
+        if password: st.error("Incorrect password.")
+        return
     
-    st.success("Password correct. Welcome to the dashboard.")
+    st.success("Welcome to the dashboard.")
     
-    # --- Data Loading and Display ---
-    all_ratings_data = get_all_ratings(conn)
-    
-    if not all_ratings_data:
-        st.warning("No ratings have been submitted yet.")
+    all_ratings = get_all_ratings(conn)
+    if not all_ratings:
+        st.warning("No ratings submitted yet.")
         return
 
-    df = pd.DataFrame(all_ratings_data)
+    df = pd.DataFrame(all_ratings)
     
-    # --- Key Metrics ---
     st.header("Key Metrics")
-    total_ratings = len(df)
-    valid_ratings = df[df['rating'] > 0].shape[0]
-    skipped_count = df[df['rating'] == -1].shape[0]
-    flagged_count = df[df['rating'] == -2].shape[0]
-    
     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-    m_col1.metric("Total Submissions", total_ratings)
-    m_col2.metric("Valid Ratings", valid_ratings)
-    m_col3.metric("Skipped Images", skipped_count)
-    m_col4.metric("Flagged Images", flagged_count)
+    m_col1.metric("Total Submissions", len(df))
+    m_col2.metric("Valid Ratings", df[df['rating'] > 0].shape[0])
+    m_col3.metric("Skipped", df[df['rating'] == -1].shape[0])
+    m_col4.metric("Flagged", df[df['rating'] == -2].shape[0])
 
-    # --- Download CSV ---
     st.header("Download Data")
     csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download all ratings as CSV",
-        data=csv,
-        file_name="face_ratings_export.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+    st.download_button("📥 Download all ratings as CSV", csv, "face_ratings_export.csv", "text/csv", use_container_width=True)
     
-    # --- Raw Data View ---
     st.header("Raw Data")
     st.dataframe(df)
 
-# --- Main App Router ---
-page = st.query_params.get("page", "rater")
+def main_app():
+    """Main application router."""
+    page = st.query_params.get("page", "rater")
 
-if page == "dashboard":
-    dashboard_page()
-else:
-    rating_page() 
+    if page == "dashboard":
+        dashboard_page()
+    else:
+        if 'user_identifier' not in st.session_state:
+            st.title("Welcome to the Face Rating Tool!")
+            st.write("Please enter a name or unique ID to begin.")
+            user_id = st.text_input("Your Name/ID")
+            if st.button("Start Rating"):
+                if user_id:
+                    st.session_state.user_identifier = user_id
+                    st.rerun()
+                else:
+                    st.error("Please enter a name or ID.")
+        else:
+            show_rating_interface(st.session_state.user_identifier)
+
+if __name__ == "__main__":
+    main_app() 
