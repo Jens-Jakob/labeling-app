@@ -9,7 +9,7 @@ IMAGE_DIR = "images/holdout_faces/cropped"
 
 # --- Database Connection ---
 # Establishes a persistent connection to Streamlit's cloud-native SQLite database.
-conn = st.connection("ratings_db", type="sql", dialect="sqlite")
+conn = st.connection('ratings_db', type='sql', url='sqlite:///ratings.db')
 init_db(conn)
 
 # --- Session Management ---
