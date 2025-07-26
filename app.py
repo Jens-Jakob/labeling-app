@@ -160,14 +160,25 @@ def dashboard_page():
                     col1, col2 = st.columns([2, 1])
                     
                     with col1:
-                        try:
+                        # Try to find the image with correct path and extension
+                        image_found = False
+                        for ext in ['.png', '.jpg', '.jpeg']:
                             img_path = f"images/holdout_faces/cropped/{img_id}"
-                            if os.path.exists(img_path):
-                                st.image(img_path, width=300)
+                            if not img_path.endswith(ext):
+                                img_path_with_ext = img_path + ext if '.' not in img_id else img_path
                             else:
-                                st.error("Image file not found")
-                        except Exception as e:
-                            st.error(f"Error loading image: {e}")
+                                img_path_with_ext = img_path
+                            
+                            try:
+                                if os.path.exists(img_path_with_ext):
+                                    st.image(img_path_with_ext, width=300)
+                                    image_found = True
+                                    break
+                            except Exception:
+                                continue
+                        
+                        if not image_found:
+                            st.info(f"Image preview not available for {img_id}")
                     
                     with col2:
                         # Show flag count for this image
