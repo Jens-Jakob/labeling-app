@@ -1,0 +1,13 @@
+torch
+torchvision
+pandas
+scikit-learn
+matplotlib
+opencv-python
+facenet-pytorch
+tqdm
+tensorboard
+deepface
+Pillow
+numpy
+streamlit
