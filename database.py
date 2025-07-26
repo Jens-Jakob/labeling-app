@@ -42,4 +42,10 @@ def get_rated_images(conn, session_id):
             text("SELECT image_id FROM ratings WHERE session_id = :session_id"),
             params=dict(session_id=session_id)
         ).fetchall()
-    return [row.image_id for row in result] 
+    return [row.image_id for row in result]
+
+def get_all_ratings(conn):
+    """Fetches all ratings from the database."""
+    with conn.session as s:
+        result = s.execute(text("SELECT * FROM ratings ORDER BY timestamp DESC")).fetchall()
+    return result 
