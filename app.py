@@ -1,10 +1,10 @@
 import streamlit as st
 import os
 import random
-import uuid
 import pandas as pd
 from database import init_db, save_rating, get_rated_images, get_all_ratings
 from sqlalchemy import text
+from st_keyup import st_keyup
 
 # --- Page Configuration ---
 st.set_page_config(layout="wide", page_title="Face Rating Tool")
@@ -19,8 +19,7 @@ def show_rating_interface(user_identifier):
     """The main UI for rating images."""
     st.title("Face Attractiveness Rating Tool")
     st.write(
-        "Rate the face's attractiveness from 1-100. "
-        "Click **Skip** for ambiguous images or **Flag** for bad/invalid ones."
+        "Use the slider to rate, or use keyboard shortcuts: **Enter** (Submit), **Space** (Skip), **F** (Flag)."
     )
     
     # --- Image Loading ---
@@ -30,15 +29,13 @@ def show_rating_interface(user_identifier):
         rated_images = get_rated_images(conn, user_identifier)
         unrated_images = [img for img in all_images if img not in rated_images]
 
-        # --- Progress Bar ---
-        st.progress(len(rated_images) / len(all_images), text=f"Progress: {len(rated_images)} / {len(all_images)} images rated")
+        st.progress(len(rated_images) / len(all_images), text=f"Progress: {len(rated_images)} / {len(all_images)}")
 
         if not unrated_images:
             st.success("🎉 You have rated all available images. Thank you!")
             st.balloons()
             return
 
-        # --- Image Display ---
         if 'current_image' not in st.session_state or st.session_state.current_image not in unrated_images:
             st.session_state.current_image = random.choice(unrated_images)
         current_image = st.session_state.current_image
@@ -51,22 +48,22 @@ def show_rating_interface(user_identifier):
             st.write("### Your Rating")
             rating = st.slider("Rating", 1, 100, 50, label_visibility="collapsed")
             
-            b_col1, b_col2, b_col3 = st.columns(3)
-            if b_col1.button("✅ Submit", use_container_width=True):
+            # --- Keyboard Shortcuts ---
+            key = st_keyup("Enter for submit, Space for skip, F for flag", debounce=500, key="keyup")
+
+            if key == "Enter":
                 save_rating(conn, current_image, rating, user_identifier)
                 st.toast(f"Saved rating of {rating}.", icon="✅")
                 st.rerun()
-
-            if b_col2.button("➡️ Skip", use_container_width=True):
+            elif key == " ": # Space bar
                 save_rating(conn, current_image, -1, user_identifier)
-                st.toast(f"Skipped image.", icon="➡️")
+                st.toast("Skipped image.", icon="➡️")
                 st.rerun()
-
-            if b_col3.button("🚩 Flag", use_container_width=True, type="secondary"):
+            elif key and key.lower() == 'f':
                 save_rating(conn, current_image, -2, user_identifier)
-                st.toast(f"Flagged image for review.", icon="🚩")
+                st.toast("Flagged image for review.", icon="🚩")
                 st.rerun()
-    
+                
     except FileNotFoundError:
         st.error(f"Image directory not found. Please ensure '{IMAGE_DIR}' exists.")
     except (IndexError, KeyError):
