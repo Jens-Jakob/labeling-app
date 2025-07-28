@@ -3,7 +3,7 @@ import os
 import random
 import uuid
 import pandas as pd
-from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics, get_top_and_bottom_images
+from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics, get_top_and_bottom_images, cleanup_test_users, get_all_users
 from sqlalchemy import text
 
 # --- Page Configuration ---
@@ -157,7 +157,7 @@ def dashboard_page():
         return
 
     # Create tabs for different analytics
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Overview", "🖼️ Image Analytics", "🚩 Flagged Images", "👥 User Analytics", "📥 Export Data"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📈 Overview", "🖼️ Image Analytics", "🚩 Flagged Images", "👥 User Analytics", "📥 Export Data", "🗑️ Admin Cleanup"])
     
     with tab1:
         st.header("Overview")
@@ -315,6 +315,44 @@ def dashboard_page():
         
         st.subheader("Data Preview")
         st.dataframe(df.head(20), use_container_width=True)
+
+    with tab6:
+        st.header("🗑️ Admin Cleanup")
+        st.warning("⚠️ **Caution**: These actions permanently delete data from the database!")
+        
+        # Show all users for review
+        st.subheader("Current Users")
+        all_users = get_all_users(conn)
+        if all_users:
+            users_df = pd.DataFrame(all_users)
+            st.dataframe(users_df, use_container_width=True)
+            
+            st.subheader("Cleanup Test Users")
+            st.write("Enter a pattern to identify test users (e.g., 'test', 'admin', 'demo'):")
+            
+            cleanup_pattern = st.text_input("User pattern to delete", placeholder="e.g., test")
+            
+            if cleanup_pattern:
+                # Show preview of what will be deleted
+                preview_users = [user.user_identifier for user in all_users if cleanup_pattern.lower() in user.user_identifier.lower()]
+                
+                if preview_users:
+                    st.write(f"**Preview**: The following {len(preview_users)} users will be deleted:")
+                    for user in preview_users:
+                        st.write(f"- {user}")
+                    
+                    # Confirmation checkbox
+                    confirm_deletion = st.checkbox(f"I confirm I want to delete all data for users containing '{cleanup_pattern}'")
+                    
+                    if confirm_deletion:
+                        if st.button("🗑️ Delete Test Users", type="primary"):
+                            users_deleted, ratings_deleted = cleanup_test_users(conn, cleanup_pattern)
+                            st.success(f"✅ Cleanup complete! Deleted {users_deleted} users and {ratings_deleted} ratings.")
+                            st.rerun()
+                else:
+                    st.info(f"No users found matching pattern '{cleanup_pattern}'")
+        else:
+            st.info("No users found in database.")
 
 def main_app():
     """Main application router."""
