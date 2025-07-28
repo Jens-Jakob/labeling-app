@@ -3,7 +3,6 @@ import os
 import random
 import uuid
 import pandas as pd
-from PIL import Image
 from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics, get_top_and_bottom_images, cleanup_test_users, get_all_users
 from sqlalchemy import text
 
@@ -13,35 +12,6 @@ st.set_page_config(layout="wide", page_title="Face Rating Tool")
 # --- Database Connection ---
 conn = st.connection('ratings_db', type='sql', url='sqlite:///ratings.db')
 init_db(conn)
-
-@st.cache_data
-def load_image_cached(image_path):
-    """Cache loaded images for better performance."""
-    try:
-        if os.path.exists(image_path):
-            return Image.open(image_path)
-    except Exception:
-        pass
-    return None
-
-def preload_next_images(unrated_images, current_image, num_preload=3):
-    """Preload next few images for smoother experience."""
-    if 'preloaded_images' not in st.session_state:
-        st.session_state.preloaded_images = {}
-    
-    # Get next images to preload
-    if current_image in unrated_images:
-        current_idx = unrated_images.index(current_image)
-        next_images = unrated_images[current_idx + 1:current_idx + 1 + num_preload]
-        
-        # Preload next images
-        IMAGE_DIR = "images/holdout_faces/cropped"
-        for img_name in next_images:
-            if img_name not in st.session_state.preloaded_images:
-                img_path = os.path.join(IMAGE_DIR, img_name)
-                loaded_img = load_image_cached(img_path)
-                if loaded_img:
-                    st.session_state.preloaded_images[img_name] = loaded_img
 
 # --- App Logic ---
 
@@ -132,17 +102,9 @@ def show_rating_interface(user_identifier):
             st.session_state.current_image = random.choice(unrated_images)
         current_image = st.session_state.current_image
         
-        # Preload next images for smooth experience
-        preload_next_images(unrated_images, current_image)
-        
         col1, col2 = st.columns(2)
         with col1:
-            # Use preloaded image if available, otherwise load normally
-            image_path = os.path.join(IMAGE_DIR, current_image)
-            if current_image in st.session_state.get('preloaded_images', {}):
-                st.image(st.session_state.preloaded_images[current_image], width=400)
-            else:
-                st.image(image_path, width=400)
+            st.image(os.path.join(IMAGE_DIR, current_image), width=400)
         
         with col2:
             st.write("### Your Rating")
@@ -152,34 +114,16 @@ def show_rating_interface(user_identifier):
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):
                 save_rating(conn, current_image, rating, user_identifier)
-                # Clear current image from preloaded cache to save memory
-                if 'preloaded_images' in st.session_state and current_image in st.session_state.preloaded_images:
-                    del st.session_state.preloaded_images[current_image]
-                # Clear current image so next one will be selected
-                if 'current_image' in st.session_state:
-                    del st.session_state.current_image
                 st.toast(f"Saved rating of {rating:g}.", icon="✅")
                 st.rerun()
 
             if b_col2.button("➡️ Skip", use_container_width=True):
                 save_rating(conn, current_image, -1, user_identifier)
-                # Clear current image from preloaded cache
-                if 'preloaded_images' in st.session_state and current_image in st.session_state.preloaded_images:
-                    del st.session_state.preloaded_images[current_image]
-                # Clear current image so next one will be selected
-                if 'current_image' in st.session_state:
-                    del st.session_state.current_image
                 st.toast(f"Skipped image.", icon="➡️")
                 st.rerun()
 
             if b_col3.button("🚩 Flag", use_container_width=True, type="secondary"):
                 save_rating(conn, current_image, -2, user_identifier)
-                # Clear current image from preloaded cache
-                if 'preloaded_images' in st.session_state and current_image in st.session_state.preloaded_images:
-                    del st.session_state.preloaded_images[current_image]
-                # Clear current image so next one will be selected
-                if 'current_image' in st.session_state:
-                    del st.session_state.current_image
                 st.toast(f"Flagged image for review.", icon="🚩")
                 st.rerun()
     
