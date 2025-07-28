@@ -133,4 +133,37 @@ def get_user_statistics(conn):
             GROUP BY user_identifier
             ORDER BY total_submissions DESC
         """)).fetchall()
-    return result 
+    return result
+
+def get_top_and_bottom_images(conn):
+    """Get the top 3 most popular and bottom 3 least popular images based on average ratings."""
+    with conn.session as s:
+        # Get top 3 most popular images
+        top_result = s.execute(text("""
+            SELECT 
+                image_id,
+                AVG(CASE WHEN rating > 0 THEN rating END) as avg_rating,
+                COUNT(CASE WHEN rating > 0 THEN 1 END) as valid_ratings
+            FROM ratings 
+            WHERE rating > 0
+            GROUP BY image_id
+            HAVING COUNT(CASE WHEN rating > 0 THEN 1 END) >= 2
+            ORDER BY avg_rating DESC
+            LIMIT 3
+        """)).fetchall()
+        
+        # Get bottom 3 least popular images
+        bottom_result = s.execute(text("""
+            SELECT 
+                image_id,
+                AVG(CASE WHEN rating > 0 THEN rating END) as avg_rating,
+                COUNT(CASE WHEN rating > 0 THEN 1 END) as valid_ratings
+            FROM ratings 
+            WHERE rating > 0
+            GROUP BY image_id
+            HAVING COUNT(CASE WHEN rating > 0 THEN 1 END) >= 2
+            ORDER BY avg_rating ASC
+            LIMIT 3
+        """)).fetchall()
+        
+    return top_result, bottom_result 

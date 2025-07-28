@@ -3,7 +3,7 @@ import os
 import random
 import uuid
 import pandas as pd
-from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics
+from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics, get_top_and_bottom_images
 from sqlalchemy import text
 
 # --- Page Configuration ---
@@ -56,9 +56,45 @@ def show_rating_interface(user_identifier):
         # --- Progress Bar ---
         st.progress(len(rated_images) / len(all_images), text=f"Progress: {len(rated_images)} / {len(all_images)} images rated")
 
+        # --- Encouragement after 5 ratings ---
+        if len(rated_images) >= 5 and len(unrated_images) > 0:
+            st.info("🎯 **Keep going!** Complete all ratings to unlock your personalized statistics and see the top 3 most and least popular faces!")
+
         if not unrated_images:
             st.success("🎉 You have rated all available images. Thank you!")
             st.balloons()
+            
+            # Show completion reward - top and bottom images
+            st.subheader("🏆 Your Completion Reward!")
+            st.write("Here are the most and least popular faces based on all user ratings:")
+            
+            top_images, bottom_images = get_top_and_bottom_images(conn)
+            
+            if top_images and bottom_images:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("### 🔥 Top 3 Most Popular")
+                    for i, (image_id, avg_rating, count) in enumerate(top_images, 1):
+                        try:
+                            img_path = f"images/holdout_faces/cropped/{image_id}"
+                            if os.path.exists(img_path):
+                                st.image(img_path, width=200, caption=f"#{i}: {avg_rating:.1f}/10 ({count} ratings)")
+                        except Exception:
+                            st.write(f"#{i}: {image_id} - {avg_rating:.1f}/10 ({count} ratings)")
+                
+                with col2:
+                    st.write("### 💀 Bottom 3 Least Popular")
+                    for i, (image_id, avg_rating, count) in enumerate(bottom_images, 1):
+                        try:
+                            img_path = f"images/holdout_faces/cropped/{image_id}"
+                            if os.path.exists(img_path):
+                                st.image(img_path, width=200, caption=f"#{i}: {avg_rating:.1f}/10 ({count} ratings)")
+                        except Exception:
+                            st.write(f"#{i}: {image_id} - {avg_rating:.1f}/10 ({count} ratings)")
+            else:
+                st.info("Not enough data yet to show popular/unpopular images. Be the first to contribute more ratings!")
+            
             return
 
         # --- Image Display ---
