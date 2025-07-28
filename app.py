@@ -73,7 +73,7 @@ def show_rating_interface(user_identifier):
         with col2:
             st.write("### Your Rating")
             rating = st.slider("Rating", 1.0, 10.0, 5.0, step=0.1, format="%.1f", label_visibility="collapsed")
-            st.write(f"**{get_rating_emoji(rating)}**")
+            st.markdown(f"<div style='font-size: 2em; text-align: center;'><b>{get_rating_emoji(rating)}</b></div>", unsafe_allow_html=True)
             
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):
