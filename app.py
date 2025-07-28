@@ -54,7 +54,7 @@ def show_rating_interface(user_identifier):
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):
                 save_rating(conn, current_image, rating, user_identifier)
-                st.toast(f"Saved rating of {rating}.", icon="✅")
+                st.toast(f"Saved rating of {rating:g}.", icon="✅")
                 st.rerun()
 
             if b_col2.button("➡️ Skip", use_container_width=True):
