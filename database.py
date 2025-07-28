@@ -6,15 +6,56 @@ from sqlalchemy import text
 def init_db(conn):
     """Initializes the database and creates the ratings table if it doesn't exist."""
     with conn.session as s:
+        # Check if table exists with old schema
+        result = s.execute(text("""
+            SELECT sql FROM sqlite_master 
+            WHERE type='table' AND name='ratings'
+        """)).fetchone()
+        
+        if result and 'INTEGER' in result[0]:
+            # Migration needed - convert old INTEGER ratings to REAL scale
+            migrate_ratings_scale(conn)
+        
         s.execute(text("""
             CREATE TABLE IF NOT EXISTS ratings (
                 id TEXT PRIMARY KEY,
                 image_id TEXT NOT NULL,
-                rating INTEGER NOT NULL,
+                rating REAL NOT NULL,
                 user_identifier TEXT NOT NULL,
                 timestamp DATETIME NOT NULL
             );
         """))
+        s.commit()
+
+def migrate_ratings_scale(conn):
+    """Migrates existing ratings from 1-100 scale to 1-10 scale."""
+    with conn.session as s:
+        # Create new table with REAL type
+        s.execute(text("""
+            CREATE TABLE IF NOT EXISTS ratings_new (
+                id TEXT PRIMARY KEY,
+                image_id TEXT NOT NULL,
+                rating REAL NOT NULL,
+                user_identifier TEXT NOT NULL,
+                timestamp DATETIME NOT NULL
+            );
+        """))
+        
+        # Convert and copy data: divide positive ratings by 10, keep special values (-1, -2)
+        s.execute(text("""
+            INSERT INTO ratings_new (id, image_id, rating, user_identifier, timestamp)
+            SELECT id, image_id, 
+                   CASE 
+                       WHEN rating > 0 THEN ROUND(rating / 10.0, 1)
+                       ELSE rating 
+                   END as rating,
+                   user_identifier, timestamp
+            FROM ratings
+        """))
+        
+        # Replace old table
+        s.execute(text("DROP TABLE ratings"))
+        s.execute(text("ALTER TABLE ratings_new RENAME TO ratings"))
         s.commit()
 
 def save_rating(conn, image_id, rating, user_identifier):

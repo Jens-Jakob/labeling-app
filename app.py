@@ -19,7 +19,7 @@ def show_rating_interface(user_identifier):
     """The main UI for rating images."""
     st.title("Face Attractiveness Rating Tool")
     st.write(
-        "Rate the face's attractiveness from 1-100. "
+        "Rate the face's attractiveness from 1.0-10.0 (e.g., 7.5). "
         "Click **Skip** for ambiguous images or **Flag** for bad/invalid ones."
     )
     
@@ -49,7 +49,7 @@ def show_rating_interface(user_identifier):
         
         with col2:
             st.write("### Your Rating")
-            rating = st.slider("Rating", 1, 100, 50, label_visibility="collapsed")
+            rating = st.slider("Rating", 1.0, 10.0, 5.0, step=0.1, label_visibility="collapsed")
             
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):

@@ -4,12 +4,12 @@ A web-based tool for collecting human ratings of facial attractiveness, built wi
 
 ## 🎯 Overview
 
-This application enables researchers to collect large-scale human ratings of facial attractiveness through a clean, web-based interface. Users can rate images on a 1-100 scale, skip ambiguous images, or flag inappropriate content. The system includes comprehensive analytics and data quality monitoring.
+This application enables researchers to collect large-scale human ratings of facial attractiveness through a clean, web-based interface. Users can rate images on a 1.0-10.0 scale (with 0.1 increments), skip ambiguous images, or flag inappropriate content. The system includes comprehensive analytics and data quality monitoring.
 
 ## ✨ Features
 
 ### 🔧 Core Functionality
-- **Image Rating Interface**: Clean, intuitive slider-based rating system (1-100 scale)
+- **Image Rating Interface**: Clean, intuitive slider-based rating system (1.0-10.0 scale with decimal precision)
 - **User Identification**: Traceable ratings with user-provided identifiers
 - **Quality Control**: Skip and flag options for maintaining dataset quality
 - **Progress Tracking**: Real-time progress bars for user engagement
@@ -41,7 +41,7 @@ This application enables researchers to collect large-scale human ratings of fac
 CREATE TABLE ratings (
     id TEXT PRIMARY KEY,
     image_id TEXT NOT NULL,
-    rating INTEGER NOT NULL,
+    rating REAL NOT NULL,
     user_identifier TEXT NOT NULL,
     timestamp DATETIME NOT NULL
 );
@@ -108,7 +108,7 @@ DASHBOARD_PASSWORD = "your_secure_password_here"
 ### For Raters
 1. **Access**: Visit the public application URL
 2. **Identify**: Enter name or unique identifier
-3. **Rate**: Use slider to rate facial attractiveness (1-100)
+3. **Rate**: Use slider to rate facial attractiveness (1.0-10.0 with 0.1 increments)
 4. **Actions**: Submit rating, skip unclear images, or flag inappropriate content
 5. **Progress**: Track completion through progress bar
 
@@ -165,7 +165,7 @@ DASHBOARD_PASSWORD = "your_secure_password_here"
 - `get_user_statistics(conn)`: Generate user analytics
 
 ### Special Rating Values
-- **1-100**: Valid attractiveness ratings
+- **1.0-10.0**: Valid attractiveness ratings (with decimal precision)
 - **-1**: Skipped image (ambiguous/unclear)
 - **-2**: Flagged image (inappropriate/poor quality)
 
@@ -187,7 +187,7 @@ DASHBOARD_PASSWORD = "your_secure_password_here"
 ### CSV Structure
 ```csv
 id,image_id,rating,user_identifier,timestamp
-uuid1,face_00001.png,75,UserName,2025-01-01 12:00:00
+uuid1,face_00001.png,7.5,UserName,2025-01-01 12:00:00
 uuid2,face_00002.png,-1,UserName,2025-01-01 12:01:00
 uuid3,face_00003.png,-2,UserName,2025-01-01 12:02:00
 ```
