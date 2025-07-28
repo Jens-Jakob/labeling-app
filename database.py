@@ -168,25 +168,43 @@ def get_top_and_bottom_images(conn):
         
     return top_result, bottom_result
 
-def cleanup_test_users(conn, pattern):
+def cleanup_test_users(conn, pattern, exact_match=False):
     """Admin function to clean up test users based on username pattern."""
     with conn.session as s:
-        # First, get the users that will be deleted for confirmation
-        users_to_delete = s.execute(
-            text("SELECT DISTINCT user_identifier FROM ratings WHERE user_identifier LIKE :pattern"),
-            params=dict(pattern=f"%{pattern}%")
-        ).fetchall()
-        
-        if users_to_delete:
-            # Delete all ratings from matching users
-            result = s.execute(
-                text("DELETE FROM ratings WHERE user_identifier LIKE :pattern"),
-                params=dict(pattern=f"%{pattern}%")
-            )
-            s.commit()
-            return len(users_to_delete), result.rowcount
+        if exact_match:
+            # Exact case-sensitive match
+            users_to_delete = s.execute(
+                text("SELECT DISTINCT user_identifier FROM ratings WHERE user_identifier = :pattern"),
+                params=dict(pattern=pattern)
+            ).fetchall()
+            
+            if users_to_delete:
+                # Delete all ratings from exact matching users
+                result = s.execute(
+                    text("DELETE FROM ratings WHERE user_identifier = :pattern"),
+                    params=dict(pattern=pattern)
+                )
+                s.commit()
+                return len(users_to_delete), result.rowcount
+            else:
+                return 0, 0
         else:
-            return 0, 0
+            # Original case-insensitive pattern matching
+            users_to_delete = s.execute(
+                text("SELECT DISTINCT user_identifier FROM ratings WHERE user_identifier LIKE :pattern"),
+                params=dict(pattern=f"%{pattern}%")
+            ).fetchall()
+            
+            if users_to_delete:
+                # Delete all ratings from matching users
+                result = s.execute(
+                    text("DELETE FROM ratings WHERE user_identifier LIKE :pattern"),
+                    params=dict(pattern=f"%{pattern}%")
+                )
+                s.commit()
+                return len(users_to_delete), result.rowcount
+            else:
+                return 0, 0
 
 def get_all_users(conn):
     """Get all unique users for admin review."""

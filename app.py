@@ -328,29 +328,37 @@ def dashboard_page():
             st.dataframe(users_df, use_container_width=True)
             
             st.subheader("Cleanup Test Users")
-            st.write("Enter a pattern to identify test users (e.g., 'test', 'admin', 'demo'):")
+            st.write("Enter a pattern to identify test users:")
             
-            cleanup_pattern = st.text_input("User pattern to delete", placeholder="e.g., test")
+            cleanup_pattern = st.text_input("User pattern to delete", placeholder="e.g., test or exact username")
+            
+            # Add option for exact match
+            exact_match = st.checkbox("Exact match (case-sensitive)", help="Check this to delete only the exact username, not partial matches")
             
             if cleanup_pattern:
                 # Show preview of what will be deleted
-                preview_users = [user.user_identifier for user in all_users if cleanup_pattern.lower() in user.user_identifier.lower()]
+                if exact_match:
+                    preview_users = [user.user_identifier for user in all_users if user.user_identifier == cleanup_pattern]
+                else:
+                    preview_users = [user.user_identifier for user in all_users if cleanup_pattern.lower() in user.user_identifier.lower()]
                 
                 if preview_users:
-                    st.write(f"**Preview**: The following {len(preview_users)} users will be deleted:")
+                    match_type = "exact match" if exact_match else "pattern match"
+                    st.write(f"**Preview ({match_type})**: The following {len(preview_users)} users will be deleted:")
                     for user in preview_users:
                         st.write(f"- {user}")
                     
                     # Confirmation checkbox
-                    confirm_deletion = st.checkbox(f"I confirm I want to delete all data for users containing '{cleanup_pattern}'")
+                    confirm_deletion = st.checkbox(f"I confirm I want to delete all data for users {'exactly matching' if exact_match else 'containing'} '{cleanup_pattern}'")
                     
                     if confirm_deletion:
                         if st.button("🗑️ Delete Test Users", type="primary"):
-                            users_deleted, ratings_deleted = cleanup_test_users(conn, cleanup_pattern)
+                            users_deleted, ratings_deleted = cleanup_test_users(conn, cleanup_pattern, exact_match)
                             st.success(f"✅ Cleanup complete! Deleted {users_deleted} users and {ratings_deleted} ratings.")
                             st.rerun()
                 else:
-                    st.info(f"No users found matching pattern '{cleanup_pattern}'")
+                    match_type = "exactly matching" if exact_match else f"containing pattern '{cleanup_pattern}'"
+                    st.info(f"No users found {match_type}")
         else:
             st.info("No users found in database.")
 
