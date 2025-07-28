@@ -50,7 +50,6 @@ def show_rating_interface(user_identifier):
         with col2:
             st.write("### Your Rating")
             rating = st.slider("Rating", 1.0, 10.0, 5.0, step=0.1, format="%.1f", label_visibility="collapsed")
-            st.write(f"**Current rating: {rating:g}**")
             
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):
