@@ -15,6 +15,29 @@ init_db(conn)
 
 # --- App Logic ---
 
+def get_rating_emoji(rating):
+    """Convert rating to emoji representation based on ranges."""
+    if rating < 1:
+        return "💀💀💀"
+    elif rating < 2:
+        return "😵🔫"
+    elif rating < 3:
+        return "🤡🪞"
+    elif rating < 4:
+        return "🕳👨‍🦯"
+    elif rating < 5:
+        return "🚪🏃‍♀️💨"
+    elif rating < 6:
+        return "😐😶😶‍🌫️🫥"
+    elif rating < 7:
+        return "🍻🍺🤔👉😏🤷"
+    elif rating < 8:
+        return "😎🤏😳🕶🤏"
+    elif rating < 9:
+        return "🌟😍🔥👑"
+    else:  # 9-10
+        return "🔥🔥🥵💍"
+
 def show_rating_interface(user_identifier):
     """The main UI for rating images."""
     st.title("Face Attractiveness Rating Tool")
@@ -50,6 +73,7 @@ def show_rating_interface(user_identifier):
         with col2:
             st.write("### Your Rating")
             rating = st.slider("Rating", 1.0, 10.0, 5.0, step=0.1, format="%.1f", label_visibility="collapsed")
+            st.write(f"**{get_rating_emoji(rating)}**")
             
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):
