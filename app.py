@@ -3,7 +3,7 @@ import os
 import random
 import uuid
 import pandas as pd
-from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics, get_top_and_bottom_images, cleanup_test_users, get_all_users
+from database import init_db, save_rating, get_rated_images, get_all_ratings, get_flagged_images, get_image_statistics, get_user_statistics, get_top_and_bottom_images, cleanup_test_users, get_all_users, undo_last_rating
 from sqlalchemy import text
 
 # --- Page Configuration ---
@@ -111,19 +111,57 @@ def show_rating_interface(user_identifier):
             rating = st.slider("Rating", 1.0, 10.0, 5.0, step=0.1, format="%.1f", label_visibility="collapsed")
             st.markdown(f"<div style='font-size: 2em; text-align: center;'><b>{get_rating_emoji(rating)}</b></div>", unsafe_allow_html=True)
             
+            # Check if undo is available (within 10 seconds of last action)
+            import time
+            show_undo = False
+            if 'last_action_time' in st.session_state:
+                time_since_action = time.time() - st.session_state.last_action_time
+                show_undo = time_since_action <= 10 and 'last_action' in st.session_state
+            
+            if show_undo:
+                # Show undo button for 10 seconds after last action
+                if st.button("↩️ Undo Last Rating", use_container_width=True, type="secondary"):
+                    undone_image, undone_rating = undo_last_rating(conn, user_identifier)
+                    if undone_image:
+                        # Restore the previous image
+                        st.session_state.current_image = undone_image
+                        # Clear undo state
+                        if 'last_action_time' in st.session_state:
+                            del st.session_state.last_action_time
+                        if 'last_action' in st.session_state:
+                            del st.session_state.last_action
+                        
+                        action_type = "rating" if undone_rating > 0 else ("skip" if undone_rating == -1 else "flag")
+                        st.toast(f"Undid last {action_type}!", icon="↩️")
+                        st.rerun()
+                
+                # Show countdown
+                time_left = int(11 - (time.time() - st.session_state.last_action_time))
+                if time_left > 0:
+                    st.caption(f"⏱️ Undo available for {time_left} more seconds")
+            
             b_col1, b_col2, b_col3 = st.columns(3)
             if b_col1.button("✅ Submit", use_container_width=True):
                 save_rating(conn, current_image, rating, user_identifier)
+                # Store action for undo functionality
+                st.session_state.last_action_time = time.time()
+                st.session_state.last_action = {'type': 'rating', 'image': current_image, 'rating': rating}
                 st.toast(f"Saved rating of {rating:g}.", icon="✅")
                 st.rerun()
 
             if b_col2.button("➡️ Skip", use_container_width=True):
                 save_rating(conn, current_image, -1, user_identifier)
+                # Store action for undo functionality
+                st.session_state.last_action_time = time.time()
+                st.session_state.last_action = {'type': 'skip', 'image': current_image, 'rating': -1}
                 st.toast(f"Skipped image.", icon="➡️")
                 st.rerun()
 
             if b_col3.button("🚩 Flag", use_container_width=True, type="secondary"):
                 save_rating(conn, current_image, -2, user_identifier)
+                # Store action for undo functionality
+                st.session_state.last_action_time = time.time()
+                st.session_state.last_action = {'type': 'flag', 'image': current_image, 'rating': -2}
                 st.toast(f"Flagged image for review.", icon="🚩")
                 st.rerun()
     

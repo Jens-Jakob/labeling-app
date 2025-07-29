@@ -219,4 +219,25 @@ def get_all_users(conn):
             GROUP BY user_identifier
             ORDER BY first_rating DESC
         """)).fetchall()
-    return result 
+    return result
+
+def undo_last_rating(conn, user_identifier):
+    """Undo the most recent rating by a specific user."""
+    with conn.session as s:
+        # Get the most recent rating by this user
+        last_rating = s.execute(text("""
+            SELECT id, image_id, rating FROM ratings 
+            WHERE user_identifier = :user_identifier 
+            ORDER BY timestamp DESC 
+            LIMIT 1
+        """), params=dict(user_identifier=user_identifier)).fetchone()
+        
+        if last_rating:
+            # Delete the most recent rating
+            s.execute(text("""
+                DELETE FROM ratings WHERE id = :rating_id
+            """), params=dict(rating_id=last_rating.id))
+            s.commit()
+            return last_rating.image_id, last_rating.rating
+        else:
+            return None, None 
